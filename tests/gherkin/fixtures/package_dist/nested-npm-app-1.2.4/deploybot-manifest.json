@@ -1,9 +1,0 @@
-{
-  "app_name": "nested-npm-app",
-  "app_type": "npm",
-  "install_dependencies": [],
-  "package_name": "nested-npm-app-1.2.4",
-  "package_version": "1.2.4",
-  "runtime": "static-files",
-  "source_kind": "node-build-output"
-}
