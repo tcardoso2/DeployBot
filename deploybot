@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+from deploybot_pkg.cli import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
