@@ -10,6 +10,7 @@ Feature: Package deployable apps
     And the output contains "Packaged nested-npm-app as nested-npm-app-1.2.3"
     And the path "{project_root}/tests/gherkin/fixtures/package_dist/nested-npm-app-1.2.3" exists
     And the file "{project_root}/tests/gherkin/fixtures/package_dist/nested-npm-app-1.2.3/index.html" contains "Nested NPM App"
+    And the file "{project_root}/tests/gherkin/fixtures/package_dist/nested-npm-app-1.2.3/deploybot-manifest.json" contains "package_version"
     When I run "deploybot package 2"
     Then the command exits with code 0
     And the output contains "Packaged nested-npm-app as nested-npm-app-1.2.4"

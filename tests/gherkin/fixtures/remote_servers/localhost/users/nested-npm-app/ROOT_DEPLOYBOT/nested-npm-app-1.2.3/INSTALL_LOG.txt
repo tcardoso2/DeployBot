@@ -1,0 +1,1 @@
+No extra runtime dependencies required for packaged static files.

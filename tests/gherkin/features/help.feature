@@ -9,5 +9,6 @@ Feature: CLI help
     And the output contains "list-apps: find deployable apps in sibling folders"
     And the output contains "package: build and package a discovered app into DeployBot/dist"
     And the output contains "list-packages: list the versioned packages available in DeployBot/dist"
-    And the output contains "deploy: copy a selected sibling app to a discovered device"
+    And the output contains "deploy: deploy a packaged app to a discovered server"
+    And the output contains "list-deployments: list packaged apps already deployed on a discovered server"
     And the output contains "remote: select a discovered host number and run a remote command"
