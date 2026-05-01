@@ -28,6 +28,10 @@ def runtime_root(host: str, linux_user: str) -> Path:
     return remote_root() / host / "users" / linux_user / "ROOT_DEPLOYBOT" / ".deploybot-runtime"
 
 
+def tunnel_root(host: str, linux_user: str) -> Path:
+    return remote_root() / host / "users" / linux_user / "ROOT_DEPLOYBOT" / ".deploybot-tunnels"
+
+
 def package_manifest_for(host: str, linux_user: str, package_name: str) -> dict:
     manifest_path = remote_root() / host / "users" / linux_user / "ROOT_DEPLOYBOT" / package_name / "deploybot-manifest.json"
     return json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -35,6 +39,16 @@ def package_manifest_for(host: str, linux_user: str, package_name: str) -> dict:
 
 def deterministic_port(package_name: str) -> int:
     return 41000 + sum(ord(char) for char in package_name) % 1000
+
+
+def normalize_subdomain(subdomain: str) -> tuple[str, str]:
+    if "." in subdomain:
+        short = subdomain.split(".", 1)[0]
+        host = subdomain
+    else:
+        short = subdomain
+        host = f"{subdomain}.ngrok.app"
+    return short, f"https://{host}"
 
 
 def check_auth(username: str, password: str) -> bool:
@@ -152,6 +166,70 @@ def running(host: str, username: str, password: str) -> int:
     return 0
 
 
+def services(host: str, username: str, password: str) -> int:
+    del host
+    if not check_auth(username, password):
+        print("authentication failed", file=sys.stderr)
+        return 1
+    print(json.dumps([{"name": "ngrok", "installed": True}]))
+    return 0
+
+
+def start_tunnel(host: str, username: str, password: str, package_name: str, subdomain: str) -> int:
+    if not check_auth(username, password):
+        print("authentication failed")
+        return 1
+    linux_user, _package_dir, _manifest = resolve_deployment(host, package_name)
+    runtime_file = runtime_root(host, linux_user) / f"{package_name}.json"
+    if not runtime_file.exists():
+        print(f"Deployment {package_name} is not running on {host}.")
+        return 1
+    running_payload = json.loads(runtime_file.read_text(encoding="utf-8"))
+    short_subdomain, url = normalize_subdomain(subdomain)
+    t_root = tunnel_root(host, linux_user)
+    t_root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "package_name": package_name,
+        "linux_user": linux_user,
+        "subdomain": short_subdomain,
+        "url": url,
+        "port": int(running_payload["port"]),
+        "pid": 9000 + len(package_name) + len(short_subdomain),
+    }
+    (t_root / f"{package_name}-{short_subdomain}.json").write_text(json.dumps(payload), encoding="utf-8")
+    print(f"Started tunnel at {url}")
+    return 0
+
+
+def stop_tunnel(host: str, username: str, password: str, package_name: str, subdomain: str) -> int:
+    if not check_auth(username, password):
+        print("authentication failed")
+        return 1
+    linux_user, _package_dir, _manifest = resolve_deployment(host, package_name)
+    short_subdomain, _url = normalize_subdomain(subdomain)
+    tunnel_file = tunnel_root(host, linux_user) / f"{package_name}-{short_subdomain}.json"
+    tunnel_file.unlink(missing_ok=True)
+    print(f"Stopped tunnel for {package_name} on {short_subdomain}")
+    return 0
+
+
+def list_tunnels(host: str, username: str, password: str) -> int:
+    if not check_auth(username, password):
+        print("authentication failed", file=sys.stderr)
+        return 1
+    host_root = remote_root() / host / "users"
+    tunnels = []
+    if host_root.exists():
+        for user_dir in sorted(host_root.iterdir()):
+            t_root = user_dir / "ROOT_DEPLOYBOT" / ".deploybot-tunnels"
+            if not t_root.exists():
+                continue
+            for tunnel_file in sorted(t_root.glob("*.json")):
+                tunnels.append(json.loads(tunnel_file.read_text(encoding="utf-8")))
+    print(json.dumps(tunnels))
+    return 0
+
+
 def main() -> int:
     action, host, ip, username, password, *extra = sys.argv[1:]
     del ip
@@ -165,6 +243,14 @@ def main() -> int:
         return stop(host, username, password, extra[0])
     if action == "running":
         return running(host, username, password)
+    if action == "services":
+        return services(host, username, password)
+    if action == "start-tunnel":
+        return start_tunnel(host, username, password, extra[0], extra[1])
+    if action == "stop-tunnel":
+        return stop_tunnel(host, username, password, extra[0], extra[1])
+    if action == "list-tunnels":
+        return list_tunnels(host, username, password)
     print(f"unsupported action: {action}", file=sys.stderr)
     return 1
 

@@ -14,4 +14,7 @@ Feature: CLI help
     And the output contains "start-app: start a deployed app on a discovered server and report its runtime port"
     And the output contains "stop-app: stop a deployed app on a discovered server"
     And the output contains "running: list currently running apps on a discovered server"
+    And the output contains "services: list detectable remote services on a discovered server"
+    And the output contains "start-tunnel: start an ngrok tunnel for a deployed app and print its public URL"
+    And the output contains "stop-tunnel: stop an ngrok tunnel for a deployed app and subdomain"
     And the output contains "remote: select a discovered host number and run a remote command"

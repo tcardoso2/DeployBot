@@ -7,10 +7,14 @@ from .apps import find_local_apps, format_apps
 from .deployments import (
     deploy_package,
     format_remote_deployments,
+    format_remote_services,
     format_running_apps,
     list_remote_deployments,
+    list_remote_services,
     list_running_apps,
+    start_tunnel,
     start_remote_app,
+    stop_tunnel,
     stop_remote_app,
 )
 from .discovery import discover_devices, format_devices
@@ -28,6 +32,9 @@ FEATURE_SUMMARY = [
     "start-app: start a deployed app on a discovered server and report its runtime port",
     "stop-app: stop a deployed app on a discovered server",
     "running: list currently running apps on a discovered server",
+    "services: list detectable remote services on a discovered server",
+    "start-tunnel: start an ngrok tunnel for a deployed app and print its public URL",
+    "stop-tunnel: stop an ngrok tunnel for a deployed app and subdomain",
     "remote: select a discovered host number and run a remote command after prompting for credentials",
 ]
 
@@ -108,6 +115,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     running_parser.add_argument("server_number", type=int, help="number from 'deploybot discover'")
 
+    services_parser = subparsers.add_parser(
+        "services",
+        help="list detectable remote services on a discovered server",
+    )
+    services_parser.add_argument("server_number", type=int, help="number from 'deploybot discover'")
+
+    start_tunnel_parser = subparsers.add_parser(
+        "start-tunnel",
+        help="start an ngrok tunnel for a deployed app",
+    )
+    start_tunnel_parser.add_argument("server_number", type=int, help="number from 'deploybot discover'")
+    start_tunnel_parser.add_argument("deployment_number", type=int, help="number from 'deploybot list-deployments'")
+    start_tunnel_parser.add_argument("subdomain", help="subdomain or full ngrok host to bind to")
+
+    stop_tunnel_parser = subparsers.add_parser(
+        "stop-tunnel",
+        help="stop an ngrok tunnel for a deployed app",
+    )
+    stop_tunnel_parser.add_argument("server_number", type=int, help="number from 'deploybot discover'")
+    stop_tunnel_parser.add_argument("deployment_number", type=int, help="number from 'deploybot list-deployments'")
+    stop_tunnel_parser.add_argument("subdomain", help="subdomain or full ngrok host to stop")
+
     remote_parser = subparsers.add_parser(
         "remote",
         help="run a command on a discovered host after prompting for credentials",
@@ -174,6 +203,29 @@ def main(argv: list[str] | None = None) -> int:
             return code
         print(format_running_apps(f"{device.host} ({device.ip})", running_apps))
         return 0
+
+    if args.command == "services":
+        code, device, services = list_remote_services(workspace_dir=workspace_dir, server_number=args.server_number)
+        if code != 0 or device is None or services is None:
+            return code
+        print(format_remote_services(f"{device.host} ({device.ip})", services))
+        return 0
+
+    if args.command == "start-tunnel":
+        return start_tunnel(
+            workspace_dir=workspace_dir,
+            server_number=args.server_number,
+            deployment_number=args.deployment_number,
+            subdomain=args.subdomain,
+        )
+
+    if args.command == "stop-tunnel":
+        return stop_tunnel(
+            workspace_dir=workspace_dir,
+            server_number=args.server_number,
+            deployment_number=args.deployment_number,
+            subdomain=args.subdomain,
+        )
 
     if args.command == "remote":
         return run_remote_command(
