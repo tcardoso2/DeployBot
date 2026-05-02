@@ -561,7 +561,7 @@ def _collect_remote_tunnels(device, username: str, password: str) -> tuple[int, 
         "set -eu\n"
         f"SUDO_PASS={shell_quote(os.environ.get('DEPLOYBOT_SUDO_PASSWORD', ''))}\n"
         "printf '%s\\n' \"$SUDO_PASS\" | sudo -S "
-        "find /home -mindepth 4 -maxdepth 4 -type f -path '/home/*/ROOT_DEPLOYBOT/.deploybot-tunnels/*.json' -print\n"
+        "find /home -mindepth 5 -maxdepth 5 -type f -path '/home/*/ROOT_DEPLOYBOT/.deploybot-tunnels/*.json' -print\n"
     )
     completed = run_ssh_with_password(device, username, password, command, capture_output=True)
     if completed.returncode != 0:

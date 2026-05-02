@@ -92,8 +92,12 @@ def _next_package_version(dist_root: Path, app_name: str, base_version: str) -> 
 
 
 def _run_command(cmd: list[str], cwd: Path) -> None:
-    completed = subprocess.run(cmd, cwd=cwd, check=False)
+    completed = subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=False)
     if completed.returncode != 0:
+        if completed.stdout:
+            print(completed.stdout, end="")
+        if completed.stderr:
+            print(completed.stderr, end="")
         raise RuntimeError(f"Command failed with exit code {completed.returncode}: {' '.join(cmd)}")
 
 

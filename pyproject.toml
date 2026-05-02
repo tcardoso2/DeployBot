@@ -8,5 +8,9 @@ version = "0.1.0"
 description = "CLI for discovering local network devices and deploying sibling apps"
 requires-python = ">=3.9"
 
+[project.scripts]
+deploybot = "deploybot_pkg.cli:main"
+deploybot-tui = "deploybot_pkg.tui:main"
+
 [tool.setuptools]
 packages = ["deploybot_pkg"]

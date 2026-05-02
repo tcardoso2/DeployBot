@@ -12,10 +12,16 @@ from .discovery import Device, discover_devices
 
 
 def prompt_username() -> str:
+    override = os.environ.get("DEPLOYBOT_USERNAME")
+    if override is not None:
+        return override
     return input("Username: ").strip()
 
 
 def prompt_password() -> str:
+    override = os.environ.get("DEPLOYBOT_PASSWORD")
+    if override is not None:
+        return override
     if os.environ.get("DEPLOYBOT_PLAIN_PASSWORD_PROMPT") == "1" or not os.isatty(0):
         return input("Password: ")
     return getpass.getpass("Password: ")
@@ -35,8 +41,14 @@ def _run_fake_executor(device: Device, username: str, password: str, command: st
 
     completed = subprocess.run(
         [executor, device.host, device.ip, username, password, command],
+        text=True,
+        capture_output=True,
         check=False,
     )
+    if completed.stdout:
+        print(completed.stdout, end="")
+    if completed.stderr:
+        print(completed.stderr, end="")
     return completed.returncode
 
 
@@ -144,4 +156,15 @@ def run_remote_command(workspace_dir: Path, host_number: int, command_parts: lis
     if fake_result != -1:
         return fake_result
 
-    return run_ssh_with_password(device=device, username=username, password=password, command=command).returncode
+    completed = run_ssh_with_password(
+        device=device,
+        username=username,
+        password=password,
+        command=command,
+        capture_output=True,
+    )
+    if completed.stdout:
+        print(completed.stdout, end="")
+    if completed.stderr:
+        print(completed.stderr, end="")
+    return completed.returncode

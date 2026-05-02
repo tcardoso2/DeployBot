@@ -3,40 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .apps import find_local_apps, format_apps
-from .deployments import (
-    deploy_package,
-    format_remote_deployments,
-    format_remote_services,
-    format_running_apps,
-    list_remote_deployments,
-    list_remote_services,
-    list_running_apps,
-    start_tunnel,
-    start_remote_app,
-    stop_tunnel,
-    stop_remote_app,
-)
-from .discovery import discover_devices, format_devices
-from .packages import format_packages, list_packages, package_app
-from .remote import run_remote_command
-
-
-FEATURE_SUMMARY = [
-    "discover: detect devices on the local network using known hosts, ARP data, and optional ping sweeps",
-    "list-apps: find deployable apps in sibling folders next to this DeployBot workspace",
-    "package: build and package a discovered app into DeployBot/dist using versioned output folders",
-    "list-packages: list the versioned packages available in DeployBot/dist",
-    "deploy: deploy a packaged app to a discovered server and prepare a dedicated linux runtime user",
-    "list-deployments: list packaged apps already deployed on a discovered server",
-    "start-app: start a deployed app on a discovered server and report its runtime port",
-    "stop-app: stop a deployed app on a discovered server",
-    "running: list currently running apps on a discovered server",
-    "services: list detectable remote services on a discovered server",
-    "start-tunnel: start an ngrok tunnel for a deployed app and print its public URL",
-    "stop-tunnel: stop an ngrok tunnel for a deployed app and subdomain",
-    "remote: select a discovered host number and run a remote command after prompting for credentials",
-]
+from .commands import execute_command, help_text
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -144,7 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
     remote_parser.add_argument("host_number", type=int, help="number from 'deploybot discover'")
     remote_parser.add_argument("remote_command", nargs="+", help="remote command to execute")
 
-    parser.epilog = "Features:\n" + "\n".join(f"- {line}" for line in FEATURE_SUMMARY)
+    parser.epilog = help_text()
     return parser
 
 
@@ -153,86 +120,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     workspace_dir = Path.cwd()
 
-    if args.command == "discover":
-        devices = discover_devices(workspace_dir=workspace_dir, ping_sweep=args.ping_sweep, limit=args.limit)
-        print(format_devices(devices))
-        return 0
-
-    if args.command == "list-apps":
-        apps = find_local_apps(workspace_dir=workspace_dir)
-        print(format_apps(apps))
-        return 0
-
-    if args.command == "package":
-        return package_app(workspace_dir=workspace_dir, app_number=args.app_number)
-
-    if args.command == "list-packages":
-        packages = list_packages(workspace_dir=workspace_dir)
-        print(format_packages(packages))
-        return 0
-
-    if args.command == "deploy":
-        return deploy_package(workspace_dir=workspace_dir, server_number=args.server_number, package_number=args.package_number)
-
-    if args.command == "list-deployments":
-        code, deployments = list_remote_deployments(workspace_dir=workspace_dir, server_number=args.server_number)
-        if code != 0 or deployments is None:
-            return code
-        devices = discover_devices(workspace_dir=workspace_dir)
-        device = devices[args.server_number - 1]
-        print(format_remote_deployments(f"{device.host} ({device.ip})", deployments))
-        return 0
-
-    if args.command == "start-app":
-        return start_remote_app(
-            workspace_dir=workspace_dir,
-            server_number=args.server_number,
-            deployment_number=args.deployment_number,
-        )
-
-    if args.command == "stop-app":
-        return stop_remote_app(
-            workspace_dir=workspace_dir,
-            server_number=args.server_number,
-            deployment_number=args.deployment_number,
-        )
-
-    if args.command == "running":
-        code, device, running_apps = list_running_apps(workspace_dir=workspace_dir, server_number=args.server_number)
-        if code != 0 or device is None or running_apps is None:
-            return code
-        print(format_running_apps(f"{device.host} ({device.ip})", running_apps))
-        return 0
-
-    if args.command == "services":
-        code, device, services = list_remote_services(workspace_dir=workspace_dir, server_number=args.server_number)
-        if code != 0 or device is None or services is None:
-            return code
-        print(format_remote_services(f"{device.host} ({device.ip})", services))
-        return 0
-
-    if args.command == "start-tunnel":
-        return start_tunnel(
-            workspace_dir=workspace_dir,
-            server_number=args.server_number,
-            deployment_number=args.deployment_number,
-            subdomain=args.subdomain,
-        )
-
-    if args.command == "stop-tunnel":
-        return stop_tunnel(
-            workspace_dir=workspace_dir,
-            server_number=args.server_number,
-            deployment_number=args.deployment_number,
-            subdomain=args.subdomain,
-        )
-
-    if args.command == "remote":
-        return run_remote_command(
-            workspace_dir=workspace_dir,
-            host_number=args.host_number,
-            command_parts=args.remote_command,
-        )
+    if args.command is not None:
+        values = {
+            key: value
+            for key, value in vars(args).items()
+            if key != "command" and value is not None
+        }
+        if "remote_command" in values:
+            values["remote_command"] = " ".join(values["remote_command"])
+        result = execute_command(args.command, values, workspace_dir)
+        if result.output:
+            print(result.output, end="" if result.output.endswith("\n") else "\n")
+        return result.exit_code
 
     parser.print_help()
     return 0
