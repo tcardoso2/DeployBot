@@ -316,6 +316,7 @@ def _execute_command_internal(command_name: str, values: dict[str, object], work
             server_number=int(values["server_number"]),
             deployment_number=int(values["deployment_number"]),
             custom_command=custom_command,
+            sudo_password=str(values.get("sudo_password", "") or "") or None,
         )
 
     if command_name == "startup-points":

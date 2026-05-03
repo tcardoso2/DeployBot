@@ -549,16 +549,44 @@ def _start_custom_command_for_deployment(deployment: RemoteDeployment, custom_co
     safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "-", deployment.package_name).strip("-") or "custom-app"
     pid_file = f"/tmp/{safe_name}-custom.pid"
     log_file = f"/tmp/{safe_name}-custom.log"
+    helper_dir = f"{runtime_dir}/bin"
+    askpass_script = f"{helper_dir}/deploybot-askpass.sh"
+    sudo_wrapper = f"{helper_dir}/sudo"
 
+    remembered_sudo_password = os.environ.get("DEPLOYBOT_SUDO_PASSWORD", "")
     command_lines = [
         "set -eu",
-        f"SUDO_PASS={shell_quote(os.environ.get('DEPLOYBOT_SUDO_PASSWORD', ''))}",
+        f"SUDO_PASS={shell_quote(remembered_sudo_password)}",
         f"RUNTIME_DIR={shell_quote(runtime_dir)}",
         f"RUNTIME_FILE={shell_quote(runtime_file)}",
         f"PACKAGE_DIR={shell_quote(package_dir)}",
         f"APP_USER={shell_quote(deployment.linux_user)}",
+        f"HELPER_DIR={shell_quote(helper_dir)}",
+        f"ASKPASS_SCRIPT={shell_quote(askpass_script)}",
+        f"SUDO_WRAPPER={shell_quote(sudo_wrapper)}",
         "printf '%s\\n' \"$SUDO_PASS\" | sudo -S mkdir -p \"$RUNTIME_DIR\"",
+        "printf '%s\\n' \"$SUDO_PASS\" | sudo -S mkdir -p \"$HELPER_DIR\"",
         "printf '%s\\n' \"$SUDO_PASS\" | sudo -S chown -R \"$APP_USER:$APP_USER\" \"$RUNTIME_DIR\"",
+        "printf '%s\\n' \"$SUDO_PASS\" | sudo -S -u \"$APP_USER\" sh -lc "
+        + shell_quote(
+            "cat > \"$1\" <<'EOF'\n"
+            "#!/bin/sh\n"
+            f"printf '%s\\n' {shell_quote(remembered_sudo_password)}\n"
+            "EOF\n"
+            "chmod 700 \"$1\""
+        )
+        + " sh \"$ASKPASS_SCRIPT\"",
+        "printf '%s\\n' \"$SUDO_PASS\" | sudo -S -u \"$APP_USER\" sh -lc "
+        + shell_quote(
+            "cat > \"$1\" <<'EOF'\n"
+            "#!/bin/sh\n"
+            "exec /usr/bin/sudo -A \"$@\"\n"
+            "EOF\n"
+            "chmod 700 \"$1\""
+        )
+        + " sh \"$SUDO_WRAPPER\""
+    ]
+    command_lines.extend([
         "if [ -f \"$RUNTIME_FILE\" ]; then",
         "  OLD_PID=$(printf '%s\\n' \"$SUDO_PASS\" | sudo -S -u \"$APP_USER\" python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(\"pid\", \"\"))' \"$RUNTIME_FILE\" 2>/dev/null || true)",
         "  if [ -n \"$OLD_PID\" ] && kill -0 \"$OLD_PID\" >/dev/null 2>&1; then",
@@ -567,7 +595,13 @@ def _start_custom_command_for_deployment(deployment: RemoteDeployment, custom_co
         "  fi",
         "fi",
         "printf '%s\\n' \"$SUDO_PASS\" | sudo -S -u \"$APP_USER\" sh -lc "
-        + shell_quote(f"cd {package_dir} && nohup {custom_command} >{log_file} 2>&1 & echo $! >{pid_file}"),
+        + shell_quote(
+            f"cd {package_dir} && "
+            "SUDO_ASKPASS=\"$ASKPASS_SCRIPT\" "
+            "SUDO_ASKPASS_REQUIRE=force "
+            "PATH=\"$HELPER_DIR:$PATH\" "
+            f"nohup {custom_command} >{log_file} 2>&1 & echo $! >{pid_file}"
+        ),
         f"PID=$(printf '%s\\n' \"$SUDO_PASS\" | sudo -S cat {shell_quote(pid_file)})",
         f"printf '%s\\n' \"$SUDO_PASS\" | sudo -S rm -f {shell_quote(pid_file)}",
         "printf '%s\\n' \"$SUDO_PASS\" | sudo -S -u \"$APP_USER\" python3 - <<'PY' \"$RUNTIME_FILE\" \"$PACKAGE_DIR\" \"$APP_USER\" \"$PID\"",
@@ -590,7 +624,7 @@ def _start_custom_command_for_deployment(deployment: RemoteDeployment, custom_co
         "Path(sys.argv[1]).write_text(json.dumps(payload), encoding='utf-8')",
         "PY",
         "printf 'Started custom command as %s\\n' \"$APP_USER\"",
-    ]
+    ])
     return "\n".join(command_lines) + "\n"
 
 
@@ -635,7 +669,10 @@ def start_remote_app_custom(
     server_number: int,
     deployment_number: int,
     custom_command: str,
+    sudo_password: str | None = None,
 ) -> int:
+    if sudo_password is not None:
+        os.environ["DEPLOYBOT_SUDO_PASSWORD"] = sudo_password
     code, device, deployment, username, password = _resolve_remote_deployment(workspace_dir, server_number, deployment_number)
     if code != 0 or device is None or deployment is None or username is None or password is None:
         return code

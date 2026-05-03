@@ -599,10 +599,30 @@ def _run_selected_command(state: TuiState, field_values: dict[str, list[str]], w
         state.output_scroll = 0
         state.last_exit_code = 1
         return
+    if spec.name == "start-app-custom" and _output_requests_sudo_password(result.output):
+        typed = _prompt_for_value(ACTIVE_SCREEN, "App sudo password", "", secret=True)
+        if typed is not None:
+            stop_values = {
+                "server_number": int(values["server_number"]),
+                "deployment_number": int(values["deployment_number"]),
+                "username": str(raw_values.get("username", "")),
+                "password": str(raw_values.get("password", "")),
+            }
+            retry_values = dict(values)
+            retry_values["sudo_password"] = typed
+            _run_command_with_waiting_modal("stop-app", stop_values, workspace_dir)
+            retry_result = _run_command_with_waiting_modal(spec.name, retry_values, workspace_dir)
+            if retry_result is not None:
+                result = retry_result
     state.message = f"Ran {spec.name} with exit code {result.exit_code}."
     state.output = result.output or f"[exit {result.exit_code}]"
     state.output_scroll = 0
     state.last_exit_code = result.exit_code
+
+
+def _output_requests_sudo_password(output: str) -> bool:
+    lowered = output.lower()
+    return "[sudo] password for " in lowered or "sudo: a password is required" in lowered
 
 
 def _edit_current_field(stdscr, state: TuiState, field_values: dict[str, list[str]] | None) -> None:
