@@ -12,11 +12,14 @@ from .deployments import (
     deploy_package,
     format_remote_deployments,
     format_remote_services,
+    format_startup_points,
     format_running_apps,
     list_remote_deployments,
     list_remote_services,
+    list_startup_points,
     list_running_apps,
     start_remote_app,
+    start_remote_app_custom,
     start_tunnel,
     stop_remote_app,
     stop_tunnel,
@@ -34,6 +37,8 @@ FEATURE_SUMMARY = [
     "deploy: deploy a packaged app to a discovered server and prepare a dedicated linux runtime user",
     "list-deployments: list packaged apps already deployed on a discovered server",
     "start-app: start a deployed app on a discovered server and report its runtime port",
+    "start-app-custom: run a custom start command inside a deployed app directory as that app's linux user",
+    "startup-points: inspect the commands start-app will run, including companion servers inside the same deployment",
     "stop-app: stop a deployed app on a discovered server",
     "running: list currently running apps on a discovered server",
     "services: list detectable remote services on a discovered server",
@@ -97,6 +102,27 @@ COMMAND_SPECS = (
     CommandSpec(
         name="start-app",
         help_text="start a deployed app on a discovered server",
+        fields=(
+            CommandField(name="server_number", prompt="Server number", kind="int"),
+            CommandField(name="deployment_number", prompt="Deployment number", kind="int"),
+            CommandField(name="username", prompt="Username"),
+            CommandField(name="password", prompt="Password", secret=True),
+        ),
+    ),
+    CommandSpec(
+        name="start-app-custom",
+        help_text="run a custom command in a deployed app directory as that app's linux user",
+        fields=(
+            CommandField(name="server_number", prompt="Server number", kind="int"),
+            CommandField(name="deployment_number", prompt="Deployment number", kind="int"),
+            CommandField(name="custom_command", prompt="Custom command"),
+            CommandField(name="username", prompt="Username"),
+            CommandField(name="password", prompt="Password", secret=True),
+        ),
+    ),
+    CommandSpec(
+        name="startup-points",
+        help_text="show the commands start-app will run for a deployed app",
         fields=(
             CommandField(name="server_number", prompt="Server number", kind="int"),
             CommandField(name="deployment_number", prompt="Deployment number", kind="int"),
@@ -280,6 +306,28 @@ def _execute_command_internal(command_name: str, values: dict[str, object], work
             server_number=int(values["server_number"]),
             deployment_number=int(values["deployment_number"]),
         )
+
+    if command_name == "start-app-custom":
+        custom_command = str(values["custom_command"]).strip()
+        if not custom_command:
+            raise ValueError("Custom command cannot be empty.")
+        return start_remote_app_custom(
+            workspace_dir=workspace_dir,
+            server_number=int(values["server_number"]),
+            deployment_number=int(values["deployment_number"]),
+            custom_command=custom_command,
+        )
+
+    if command_name == "startup-points":
+        code, device, deployment, startup_points = list_startup_points(
+            workspace_dir=workspace_dir,
+            server_number=int(values["server_number"]),
+            deployment_number=int(values["deployment_number"]),
+        )
+        if code != 0 or device is None or deployment is None or startup_points is None:
+            return code
+        print(format_startup_points(f"{device.host} ({device.ip})", deployment, startup_points))
+        return 0
 
     if command_name == "stop-app":
         return stop_remote_app(

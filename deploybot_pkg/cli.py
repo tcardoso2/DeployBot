@@ -69,6 +69,25 @@ def build_parser() -> argparse.ArgumentParser:
     start_app_parser.add_argument("server_number", type=int, help="number from 'deploybot discover'")
     start_app_parser.add_argument("deployment_number", type=int, help="number from 'deploybot list-deployments'")
 
+    start_app_custom_parser = subparsers.add_parser(
+        "start-app-custom",
+        help="run a custom command in a deployed app directory as that app's linux user",
+    )
+    start_app_custom_parser.add_argument("server_number", type=int, help="number from 'deploybot discover'")
+    start_app_custom_parser.add_argument("deployment_number", type=int, help="number from 'deploybot list-deployments'")
+    start_app_custom_parser.add_argument(
+        "custom_command",
+        nargs=argparse.REMAINDER,
+        help="custom command to execute in the deployed app directory",
+    )
+
+    startup_points_parser = subparsers.add_parser(
+        "startup-points",
+        help="show the commands start-app will run for a deployed app",
+    )
+    startup_points_parser.add_argument("server_number", type=int, help="number from 'deploybot discover'")
+    startup_points_parser.add_argument("deployment_number", type=int, help="number from 'deploybot list-deployments'")
+
     stop_app_parser = subparsers.add_parser(
         "stop-app",
         help="stop a deployed app on a discovered server",
@@ -128,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
         }
         if "remote_command" in values:
             values["remote_command"] = " ".join(values["remote_command"])
+        if "custom_command" in values and isinstance(values["custom_command"], list):
+            values["custom_command"] = " ".join(values["custom_command"])
         result = execute_command(args.command, values, workspace_dir)
         if result.output:
             print(result.output, end="" if result.output.endswith("\n") else "\n")

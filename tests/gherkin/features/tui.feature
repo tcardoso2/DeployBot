@@ -12,7 +12,7 @@ Feature: Terminal UI
     Given the environment variable "DEPLOYBOT_PLAIN_PASSWORD_PROMPT" is "1"
     Given the path "{project_root}/tests/gherkin/fixtures/package_dist" is removed
     Given the path "{project_root}/tests/gherkin/fixtures/remote_servers" is removed
-    Given the interactive input is "list-apps\npackage\n2\nlist-packages\ndiscover\nn\n32\ndeploy\n1\n1\nadmin\nsecret\nlist-deployments\n1\nadmin\nsecret\nstart-app\n1\n1\nadmin\nsecret\nrunning\n1\nadmin\nsecret\nservices\n1\nadmin\nsecret\nstart-tunnel\n1\n1\ndemo-space\nadmin\nsecret\nstop-tunnel\n1\n1\ndemo-space\nadmin\nsecret\nstop-app\n1\n1\nadmin\nsecret\nremote\n1\nhostname\ntester\nsecret\nq\n"
+    Given the interactive input is "list-apps\npackage\n2\nlist-packages\ndiscover\nn\n32\ndeploy\n1\n1\nadmin\nsecret\nlist-deployments\n1\nadmin\nsecret\nstart-app-custom\n1\n1\npython3 -m http.server 43000 --bind 0.0.0.0\nadmin\nsecret\nstart-app\n1\n1\nadmin\nsecret\nrunning\n1\nadmin\nsecret\nservices\n1\nadmin\nsecret\nstart-tunnel\n1\n1\ndemo-space\nadmin\nsecret\nstop-tunnel\n1\n1\ndemo-space\nadmin\nsecret\nstop-app\n1\n1\nadmin\nsecret\nremote\n1\nhostname\ntester\nsecret\nq\n"
     When I run "deploybot-tui"
     Then the command exits with code 0
     And the output contains "DeployBot TUI"
@@ -22,6 +22,7 @@ Feature: Terminal UI
     And the output contains "Discovered devices:"
     And the output contains "Deployed as linux user nested-npm-app"
     And the output contains "Deployed apps on localhost (127.0.0.1):"
+    And the output contains "Started custom command as nested-npm-app"
     And the output contains "Started app as nested-npm-app on port 41672"
     And the output contains "Running apps on localhost (127.0.0.1):"
     And the output contains "Services on localhost (127.0.0.1):"

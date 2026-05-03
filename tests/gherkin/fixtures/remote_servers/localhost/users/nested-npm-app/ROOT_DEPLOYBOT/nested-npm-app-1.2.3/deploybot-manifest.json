@@ -5,5 +5,20 @@
   "package_name": "nested-npm-app-1.2.3",
   "package_version": "1.2.3",
   "runtime": "static-files",
-  "source_kind": "node-build-output"
+  "source_kind": "node-build-output",
+  "startup_points": [
+    {
+      "command_template": "python3 -m http.server {port} --bind 0.0.0.0",
+      "name": "web",
+      "role": "primary",
+      "source": "packaged static files"
+    },
+    {
+      "command_template": "node ws-server.js",
+      "name": "ws-server",
+      "path": "ws-server.js",
+      "role": "companion",
+      "source": "detected companion server"
+    }
+  ]
 }

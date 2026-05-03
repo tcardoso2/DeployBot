@@ -12,6 +12,7 @@ Feature: CLI help
     And the output contains "deploy: deploy a packaged app to a discovered server"
     And the output contains "list-deployments: list packaged apps already deployed on a discovered server"
     And the output contains "start-app: start a deployed app on a discovered server and report its runtime port"
+    And the output contains "startup-points: inspect the commands start-app will run"
     And the output contains "stop-app: stop a deployed app on a discovered server"
     And the output contains "running: list currently running apps on a discovered server"
     And the output contains "services: list detectable remote services on a discovered server"

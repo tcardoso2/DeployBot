@@ -1,7 +1,7 @@
-Feature: Start and stop deployed apps
-  DeployBot should start and stop a deployed app on a discovered server using the numbered deployment list.
+Feature: Start deployed apps with a custom command
+  DeployBot should run a custom command inside the deployed app directory as the deployment's linux user.
 
-  Scenario: Start and stop a deployed static npm app
+  Scenario: Start a deployed app with a custom command
     Given the environment variable "DEPLOYBOT_APP_SEARCH_ROOT" is "{project_root}/tests/gherkin/fixtures/app_search_root"
     Given the environment variable "DEPLOYBOT_DIST_DIR" is "{project_root}/tests/gherkin/fixtures/package_dist"
     Given the environment variable "DEPLOYBOT_KNOWN_HOSTS" is "{project_root}/tests/gherkin/fixtures/known_hosts"
@@ -17,14 +17,9 @@ Feature: Start and stop deployed apps
     When I run "deploybot deploy 1 1"
     Then the command exits with code 0
     Given the interactive input is "admin\nsecret\n"
-    When I run "deploybot start-app 1 1"
+    When I run "deploybot start-app-custom 1 1 python3 -m http.server 43000 --bind 0.0.0.0"
     Then the command exits with code 0
-    And the output contains "Starting nested-npm-app-1.2.3 on localhost (127.0.0.1)..."
-    And the output contains "Started app as nested-npm-app on port 41672"
+    And the output contains "Starting custom command for nested-npm-app-1.2.3 on localhost (127.0.0.1)..."
+    And the output contains "Started custom command as nested-npm-app"
     And the path "{project_root}/tests/gherkin/fixtures/remote_servers/localhost/users/nested-npm-app/ROOT_DEPLOYBOT/.deploybot-runtime/nested-npm-app-1.2.3.json" exists
-    And the file "{project_root}/tests/gherkin/fixtures/remote_servers/localhost/users/nested-npm-app/ROOT_DEPLOYBOT/.deploybot-runtime/nested-npm-app-1.2.3.json" contains "node ws-server.js"
-    Given the interactive input is "admin\nsecret\n"
-    When I run "deploybot stop-app 1 1"
-    Then the command exits with code 0
-    And the output contains "Stopping nested-npm-app-1.2.3 on localhost (127.0.0.1)..."
-    And the output contains "Stopped nested-npm-app-1.2.3 as nested-npm-app"
+    And the file "{project_root}/tests/gherkin/fixtures/remote_servers/localhost/users/nested-npm-app/ROOT_DEPLOYBOT/.deploybot-runtime/nested-npm-app-1.2.3.json" contains "python3 -m http.server 43000 --bind 0.0.0.0"

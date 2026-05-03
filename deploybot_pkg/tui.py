@@ -562,6 +562,13 @@ def _run_selected_command(state: TuiState, field_values: dict[str, list[str]], w
     spec = COMMAND_SPECS[state.selected_command]
     raw_values = {field.name: field_values[spec.name][index] for index, field in enumerate(spec.fields)}
     for index, field in enumerate(spec.fields):
+        if field.name == "custom_command" and not raw_values[field.name].strip():
+            typed = _prompt_for_value(ACTIVE_SCREEN, "Custom command", "", secret=False)
+            if typed is None:
+                state.message = f"Cancelled {spec.name}."
+                return
+            raw_values[field.name] = typed
+            field_values[spec.name][index] = typed
         if field.name == "username" and not raw_values[field.name].strip():
             typed = _prompt_for_value(ACTIVE_SCREEN, "Username", "", secret=False)
             if typed is None:

@@ -8,6 +8,12 @@ import shutil
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from deploybot_pkg.startup import materialize_startup_points
+
 
 def sanitize_linux_username(app_name: str) -> str:
     normalized = re.sub(r"[^a-z0-9_-]+", "-", app_name.lower()).strip("-_")
@@ -124,17 +130,69 @@ def start(host: str, username: str, password: str, package_name: str) -> int:
     runtime_dir = runtime_root(host, linux_user)
     runtime_dir.mkdir(parents=True, exist_ok=True)
     runtime_file = runtime_dir / f"{package_name}.json"
-    port = deterministic_port(package_name)
+    startup_points = materialize_startup_points(manifest, package_name)
+    if not startup_points:
+        print(f"Unsupported runtime for start-app: {manifest.get('runtime', 'unknown')}")
+        return 1
+    primary = next((point for point in startup_points if point.get("role") == "primary"), startup_points[0])
+    port = int(primary.get("port") or 0)
+    processes = []
+    for index, point in enumerate(startup_points, start=1):
+        processes.append(
+            {
+                "name": point.get("name", f"process-{index}"),
+                "role": point.get("role", "companion"),
+                "command": point.get("command", ""),
+                "port": point.get("port"),
+                "pid": 5000 + len(package_name) + index,
+            }
+        )
     payload = {
         "package_name": package_name,
         "linux_user": linux_user,
         "package_path": f"/home/{linux_user}/ROOT_DEPLOYBOT/{package_name}",
         "port": port,
-        "pid": 5000 + len(package_name),
+        "pid": processes[0]["pid"],
         "runtime": manifest.get("runtime", "unknown"),
+        "processes": processes,
     }
     runtime_file.write_text(json.dumps(payload), encoding="utf-8")
-    print(f"Started app as {linux_user} on port {port}")
+    if port:
+        print(f"Started app as {linux_user} on port {port}")
+    else:
+        print(f"Started app as {linux_user}")
+    return 0
+
+
+def start_custom(host: str, username: str, password: str, package_name: str, custom_command: str) -> int:
+    if not check_auth(username, password):
+        print("authentication failed")
+        return 1
+    linux_user, package_dir, _manifest = resolve_deployment(host, package_name)
+    runtime_dir = runtime_root(host, linux_user)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    runtime_file = runtime_dir / f"{package_name}.json"
+    pid = 7000 + len(package_name)
+    payload = {
+        "package_name": package_name,
+        "linux_user": linux_user,
+        "package_path": f"/home/{linux_user}/ROOT_DEPLOYBOT/{package_name}",
+        "port": 0,
+        "pid": pid,
+        "runtime": "custom-command",
+        "processes": [
+            {
+                "name": "custom",
+                "role": "primary",
+                "command": custom_command,
+                "port": None,
+                "pid": pid,
+                "working_directory": str(package_dir),
+            }
+        ],
+    }
+    runtime_file.write_text(json.dumps(payload), encoding="utf-8")
+    print(f"Started custom command as {linux_user}")
     return 0
 
 
@@ -163,6 +221,21 @@ def running(host: str, username: str, password: str) -> int:
             for runtime_file in sorted(run_dir.glob("*.json")):
                 apps.append(json.loads(runtime_file.read_text(encoding="utf-8")))
     print(json.dumps(apps))
+    return 0
+
+
+def startup_points(host: str, username: str, password: str, package_name: str) -> int:
+    if not check_auth(username, password):
+        print("authentication failed", file=sys.stderr)
+        return 1
+    linux_user, package_dir, manifest = resolve_deployment(host, package_name)
+    payload = {
+        "manifest": manifest,
+        "startup_points": materialize_startup_points(manifest, package_name),
+        "package_path": f"/home/{linux_user}/ROOT_DEPLOYBOT/{package_name}",
+    }
+    del package_dir
+    print(json.dumps(payload))
     return 0
 
 
@@ -239,10 +312,14 @@ def main() -> int:
         return list_deployments(host, username, password)
     if action == "start":
         return start(host, username, password, extra[0])
+    if action == "start-custom":
+        return start_custom(host, username, password, extra[0], extra[1])
     if action == "stop":
         return stop(host, username, password, extra[0])
     if action == "running":
         return running(host, username, password)
+    if action == "startup-points":
+        return startup_points(host, username, password, extra[0])
     if action == "services":
         return services(host, username, password)
     if action == "start-tunnel":

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .apps import LocalApp, find_local_apps
+from .startup import detect_startup_points, supplemental_package_files
 
 
 @dataclass(frozen=True)
@@ -105,6 +106,11 @@ def _copy_tree(source: Path, destination: Path) -> None:
     shutil.copytree(source, destination)
 
 
+def _copy_file(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+
+
 def _build_npm_app(app: LocalApp) -> Path:
     if shutil.which("npm") is None:
         raise RuntimeError("npm is not available on this machine.")
@@ -155,12 +161,14 @@ def _runtime_profile(app: LocalApp, app_type: str) -> dict:
             "runtime": "static-files",
             "install_dependencies": [],
             "source_kind": source_kind,
+            "startup_points": detect_startup_points(app.path, app_type="npm", runtime="static-files"),
         }
     return {
         "app_type": "python",
         "runtime": "python-files",
         "install_dependencies": ["python3"],
         "source_kind": "python-source",
+        "startup_points": detect_startup_points(app.path, app_type="python", runtime="python-files"),
     }
 
 
@@ -171,12 +179,21 @@ def _runtime_profile_for_packaged_contents(package: BuiltPackage, app_type: str)
             "runtime": "static-files",
             "install_dependencies": [],
             "source_kind": "vite-build-output" if (package.path / "index.html").exists() else "node-build-output",
+            "startup_points": [
+                {
+                    "name": "web",
+                    "role": "primary",
+                    "command_template": "python3 -m http.server {port} --bind 0.0.0.0",
+                    "source": "packaged static files",
+                }
+            ],
         }
     return {
         "app_type": "python",
         "runtime": "python-files",
         "install_dependencies": ["python3"],
         "source_kind": "python-source",
+        "startup_points": detect_startup_points(package.path, app_type="python", runtime="python-files"),
     }
 
 
@@ -215,6 +232,11 @@ def _write_manifest(package_dir: Path, app: LocalApp, app_type: str, package_ver
     _write_json(package_dir / "deploybot-manifest.json", manifest)
 
 
+def _copy_supplemental_package_files(app: LocalApp, package_dir: Path, startup_points: list[dict]) -> None:
+    for relative_path in supplemental_package_files(app.path, startup_points):
+        _copy_file(app.path / relative_path, package_dir / relative_path)
+
+
 def package_app(workspace_dir: Path, app_number: int) -> int:
     apps = find_local_apps(workspace_dir)
     if app_number < 1 or app_number > len(apps):
@@ -239,6 +261,8 @@ def package_app(workspace_dir: Path, app_number: int) -> int:
             shutil.rmtree(package_dir)
         _copy_tree(source_dir, package_dir)
         _write_manifest(package_dir, app, app_type, package_version)
+        manifest = _read_json(package_dir / "deploybot-manifest.json")
+        _copy_supplemental_package_files(app, package_dir, list(manifest.get("startup_points") or []))
     except (RuntimeError, ValueError) as exc:
         print(str(exc))
         return 1
