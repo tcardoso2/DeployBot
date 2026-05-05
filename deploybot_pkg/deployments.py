@@ -542,7 +542,11 @@ def _start_command_for_deployment(deployment: RemoteDeployment, startup_points: 
     return "\n".join(command_lines) + "\n", primary_port
 
 
-def _start_custom_command_for_deployment(deployment: RemoteDeployment, custom_command: str) -> str:
+def _start_custom_command_for_deployment(
+    deployment: RemoteDeployment,
+    custom_command: str,
+    sudo_password: str | None = None,
+) -> str:
     runtime_dir = _remote_runtime_dir(deployment.linux_user)
     runtime_file = _remote_runtime_file(deployment.linux_user, deployment.package_name)
     package_dir = deployment.package_path
@@ -553,7 +557,9 @@ def _start_custom_command_for_deployment(deployment: RemoteDeployment, custom_co
     askpass_script = f"{helper_dir}/deploybot-askpass.sh"
     sudo_wrapper = f"{helper_dir}/sudo"
 
-    remembered_sudo_password = os.environ.get("DEPLOYBOT_SUDO_PASSWORD", "")
+    remembered_sudo_password = (
+        sudo_password if sudo_password is not None else os.environ.get("DEPLOYBOT_SUDO_PASSWORD", "")
+    )
     command_lines = [
         "set -eu",
         f"SUDO_PASS={shell_quote(remembered_sudo_password)}",
@@ -671,8 +677,6 @@ def start_remote_app_custom(
     custom_command: str,
     sudo_password: str | None = None,
 ) -> int:
-    if sudo_password is not None:
-        os.environ["DEPLOYBOT_SUDO_PASSWORD"] = sudo_password
     code, device, deployment, username, password = _resolve_remote_deployment(workspace_dir, server_number, deployment_number)
     if code != 0 or device is None or deployment is None or username is None or password is None:
         return code
@@ -684,7 +688,11 @@ def start_remote_app_custom(
         device,
         username,
         password,
-        _start_custom_command_for_deployment(deployment, custom_command),
+        _start_custom_command_for_deployment(
+            deployment,
+            custom_command,
+            sudo_password=sudo_password,
+        ),
         capture_output=True,
     )
     if completed.stdout:

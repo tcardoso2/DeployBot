@@ -647,13 +647,17 @@ def _prompt_for_value(stdscr, prompt: str, initial: str, secret: bool = False) -
     top = max(2, (height - box_height) // 2)
     left = max(3, (width - box_width) // 2)
 
+    _clear_modal_area(stdscr, top, left, box_height, box_width)
     win = stdscr.derwin(box_height, box_width, top, left)
     win.keypad(True)
+    win.erase()
+    _blank_window(win)
     _draw_box(win, f" {prompt} ", active=True)
     _safe_addstr(win, 1, 2, "Enter to save, Esc to cancel", _attr_dim())
 
     edit_win = win.derwin(1, box_width - 6, 3, 3)
     edit_win.erase()
+    _blank_window(edit_win)
     if secret and initial:
         _safe_addstr(edit_win, 0, 0, "*" * min(len(initial), box_width - 7))
     else:
@@ -679,8 +683,10 @@ def _show_waiting_modal(title: str, lines: tuple[str, ...]) -> None:
     left = max(2, (width - box_width) // 2)
 
     try:
+        _clear_modal_area(stdscr, top, left, box_height, box_width)
         win = stdscr.derwin(box_height, box_width, top, left)
         win.erase()
+        _blank_window(win)
         _draw_box(win, title, active=True)
         for index, line in enumerate(lines, start=2):
             _safe_addstr(win, index, 3, line[: max(1, box_width - 6)], _attr_normal())
@@ -690,6 +696,19 @@ def _show_waiting_modal(title: str, lines: tuple[str, ...]) -> None:
         curses.doupdate()
     except curses.error:
         return
+
+
+def _clear_modal_area(stdscr, top: int, left: int, height: int, width: int) -> None:
+    blank = " " * max(1, width)
+    for offset in range(max(0, height)):
+        _safe_addstr(stdscr, top + offset, left, blank)
+
+
+def _blank_window(win) -> None:
+    height, width = win.getmaxyx()
+    blank = " " * max(1, width - 1)
+    for row in range(max(0, height)):
+        _safe_addstr(win, row, 0, blank)
 
 
 def _run_command_with_waiting_modal(command_name: str, values: dict[str, object], workspace_dir: Path):
